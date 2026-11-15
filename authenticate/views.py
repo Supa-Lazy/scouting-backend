@@ -103,6 +103,10 @@ def oauth2callback(request):
     request.session.pop('oauth_state', None)
     request.session.pop('oauth_code_verifier', None)
 
+    # Single-use values — clear now that the token exchange succeeded
+    request.session.pop('oauth_state', None)
+    request.session.pop('oauth_code_verifier', None)
+
     if _DEBUG:
         os.environ.pop('OAUTHLIB_INSECURE_TRANSPORT', None)
 

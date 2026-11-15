@@ -385,6 +385,8 @@ def team_page(request, team_number):
             event=comp_code
         ).order_by('match_number'))
 
+        excluded_ids = [m.id for m in all_team_match_data if m.is_excluded]
+
         context.update({
             'team': team,
             # Other events this robot was pit-scouted at, so the page can offer

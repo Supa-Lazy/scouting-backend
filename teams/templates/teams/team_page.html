@@ -221,8 +221,10 @@
                     {% if match.is_tipped %}<span class="badge bg-info">Tipped</span>{% endif %}
                     {{ match.comment }}
                 </td>
-                <td class="video-cell" style="text-align:center;">
-                    <span style="color:var(--muted-text);font-size:0.75rem;">—</span>
+                <td>
+                    <button class="hide-match-btn" data-match-id="{{ match.id }}" title="Hide match from rankings averages">
+                        Hide
+                    </button>
                 </td>
                 {% plugin_hook 'team_page_match_row' %}
             </tr>
@@ -794,6 +796,8 @@ function confirmClearPitData() {
         btn.addEventListener('click', function () {
             if (btn.disabled) return;
             btn.disabled = true;
+            if (btn.disabled) return;
+            btn.disabled = true;
             var matchId = parseInt(btn.dataset.matchId, 10);
             var row = btn.closest('tr');
 
@@ -834,131 +838,6 @@ function confirmClearPitData() {
     });
 })();
 </script>
-
-<script>
-(function () {
-    var comp = '{{ comp_code }}';
-    if (!comp || comp === 'None' || comp === 'testing') return;
-
-    var LEVEL_MAP = {'Quals': 'qm', 'Playoff': 'sf', 'Prac': 'pm'};
-    var rows = document.querySelectorAll('#match_data tbody tr[data-match-number]');
-    var matchKeys = [];
-    rows.forEach(function (row) {
-        var num = row.dataset.matchNumber;
-        var q = row.dataset.quantifier;
-        var level = LEVEL_MAP[q] || 'qm';
-        matchKeys.push(comp + '_' + level + num);
-    });
-    if (!matchKeys.length) return;
-
-    // Fetch all event matches from TBA in one call
-    fetch('/api/tba_videos/?comp=' + comp, {credentials: 'same-origin'})
-        .then(function (r) { return r.ok ? r.json() : {}; })
-        .then(function (videos) {
-            rows.forEach(function (row) {
-                var num = row.dataset.matchNumber;
-                var q = row.dataset.quantifier;
-                var level = LEVEL_MAP[q] || 'qm';
-                var key = comp + '_' + level + num;
-                var cell = row.querySelector('.video-cell');
-                if (!cell) return;
-                var vid = videos[key];
-                if (vid) {
-                    cell.innerHTML = '<a href="https://www.youtube.com/watch?v=' + vid +
-                        '" target="_blank" rel="noopener" title="Watch on YouTube" ' +
-                        'style="color:var(--accent);font-size:1.1rem;text-decoration:none;">▶</a>';
-                } else {
-                    cell.innerHTML = '<span style="color:var(--muted-text);font-size:0.7rem;" title="No video posted yet">—</span>';
-                }
-            });
-        })
-        .catch(function () {});
-})();
-</script>
-
-{% if human_player_records %}
-<div class="section-heading" style="margin-top:1.5rem;">Important Info</div>
-<div class="table-responsive" style="max-height:none;">
-    <table class="table table-bordered table-sm theme-table">
-        <thead>
-            <tr>
-                <th>Match</th>
-                <th>Observation</th>
-                <th>
-                    <a href="{% url 'human-scout' team_number %}{% if comp_code %}?comp={{ comp_code }}{% endif %}"
-                       class="pit-btn pit-btn-edit" style="font-size:0.72rem;padding:3px 10px;text-decoration:none;">
-                        + Add
-                    </a>
-                </th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for record in human_player_records %}
-            <tr>
-                <td style="white-space:nowrap;font-weight:700;">Match {{ record.match_number }}</td>
-                <td colspan="2">{{ record.human_player_comment }}</td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
-</div>
-{% elif team and comp_code %}
-<div style="margin-top:1.25rem;display:flex;align-items:center;gap:10px;">
-    <span class="section-heading" style="margin:0;border:none;">Important Info</span>
-    <a href="{% url 'human-scout' team_number %}{% if comp_code %}?comp={{ comp_code }}{% endif %}"
-       class="pit-btn pit-btn-edit" style="font-size:0.78rem;text-decoration:none;">
-        + Add Observation
-    </a>
-</div>
-{% endif %}
-
-{% if team and comp_code %}
-<script>
-(function () {
-    var btn = document.getElementById('notes-save-btn');
-    var textarea = document.getElementById('team-notes-textarea');
-    var badge = document.getElementById('notes-saved-badge');
-    if (!btn || !textarea) return;
-
-    function getCsrf() {
-        var m = document.cookie.match(/csrftoken=([^;]+)/);
-        return m ? m[1] : '';
-    }
-
-    btn.addEventListener('click', function () {
-        btn.disabled = true;
-        btn.textContent = 'Saving…';
-        var body = new URLSearchParams();
-        body.append('comp_code', '{{ comp_code }}');
-        body.append('notes', textarea.value);
-        fetch('{% url "save_team_notes" team_number %}', {
-            method: 'POST',
-            credentials: 'same-origin',
-            headers: { 'X-CSRFToken': getCsrf() },
-            body: body,
-        })
-        .then(function (r) { return r.json(); })
-        .then(function (data) {
-            btn.disabled = false;
-            btn.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg> Save Notes';
-            if (data.status === 'ok') {
-                badge.style.display = 'inline';
-                setTimeout(function () { badge.style.display = 'none'; }, 2000);
-            }
-        })
-        .catch(function () {
-            btn.disabled = false;
-            btn.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg> Save Notes';
-            if (window.showToast) {
-                window.showToast('Failed to save notes. Please try again.', 'error');
-            } else {
-                alert('Failed to save notes. Please try again.');
-            }
-        });
-    });
-})();
-</script>
-{% endif %}
 
 {% plugin_hook 'team_page_footer' %}
 {% endblock %}

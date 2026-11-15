@@ -60,6 +60,7 @@ urlpatterns = [
     path('api/ingest/', include('ingest.urls')),
     path('api/alerts/', alert_views.get_broken_alerts, name='broken_alerts'),
     path('api/simulate/', simulation_views.simulate_match_view, name='simulate_match'),
+    path('api/tba_videos/', team_views.tba_videos, name='tba_videos'),
     path("auth/", include("authenticate.urls")),
     path('admin-panel/', admin_views.admin_panel, name='admin_panel'),
     path('admin-panel/add-user/', admin_views.add_user, name='add_user'),

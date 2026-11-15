@@ -134,8 +134,19 @@ def rankings(request):
         if col.get('sortable') and col['key'] != 'team_number':
             SORT_OPTIONS.append((col['key'], col['display_name']))
     SORT_OPTIONS.append(('match_count', 'Matches Played'))
+    # Build sort options from config rankings columns + computed fields
+    SORT_OPTIONS = []
+    for col in config.get('rankings', []):
+        if col.get('sortable') and col['key'] != 'team_number':
+            SORT_OPTIONS.append((col['key'], col['display_name']))
+    SORT_OPTIONS.append(('match_count', 'Matches Played'))
 
     # Get excluded match IDs from session
+    excluded_ids = set()  # Now handled by is_excluded field in DB
+    logger.warning(
+        "RANKINGS user=%s",
+        request.session.get('email', '?'),
+    )
     excluded_ids = set()  # Now handled by is_excluded field in DB
     logger.warning(
         "RANKINGS user=%s",
@@ -192,9 +203,29 @@ def rankings(request):
     for m in all_matches:
         matches_by_team[m.team_number].append(m)
 
+    # Bulk-fetch ALL match data for this event/quantifier in ONE query
+    all_matches = list(models.Team_Match_Data.objects.filter(
+        event=comp_code, quantifier=quantifier, is_excluded=False
+    ))
+
+    # Group by team number
+    matches_by_team = defaultdict(list)
+    for m in all_matches:
+        matches_by_team[m.team_number].append(m)
+
     for team in teams:
         if pit_filtered_teams is not None and team.team_number not in pit_filtered_teams:
             continue
+        team_matches = matches_by_team.get(team.team_number)
+        if not team_matches:
+            continue
+        stats = _compute_team_averages(team_matches, config, exclude_zeros)
+        if not stats or stats.get('match_count', 0) < min_matches:
+            continue
+        stats['totalPass']     = round((stats.get('autoPass', 0) or 0) + (stats.get('telePass', 0) or 0), 3)
+        stats['totalShooting'] = round((stats.get('autoScore', 0) or 0) + (stats.get('teleScore', 0) or 0), 3)
+        stats['totalTotal']    = round((stats.get('totalShooting', 0) or 0) + (stats.get('totalPass', 0) or 0), 3)
+        team_averages[team.team_number] = stats
         team_matches = matches_by_team.get(team.team_number)
         if not team_matches:
             continue
@@ -220,6 +251,7 @@ def rankings(request):
         'min_matches': min_matches,
         'filterable_pit': filterable_pit,
         'active_pit_filters': active_pit_filters,
+        'excluded_count': models.Team_Match_Data.objects.filter(event=comp_code, is_excluded=True).count(),
         'excluded_count': models.Team_Match_Data.objects.filter(event=comp_code, is_excluded=True).count(),
     })
 
@@ -784,6 +816,21 @@ def toggle_exclude_match(request):
     )
 
     return JsonResponse({'status': action, 'match_id': match_id})
+    try:
+        match = models.Team_Match_Data.objects.get(id=match_id)
+    except models.Team_Match_Data.DoesNotExist:
+        return JsonResponse({'error': 'Match not found'}, status=404)
+
+    match.is_excluded = not match.is_excluded
+    match.save(update_fields=['is_excluded'])
+    action = 'excluded' if match.is_excluded else 'included'
+
+    logger.warning(
+        "TOGGLE user=%s match_id=%d team=%d M%d action=%s",
+        request.session.get('email', '?'), match_id, match.team_number, match.match_number, action
+    )
+
+    return JsonResponse({'status': action, 'match_id': match_id})
 
 
 @login_required
@@ -908,6 +955,7 @@ def team_info(request, team_number):
     ).order_by('match_number')
 
     excluded = set()
+    excluded = set()
     config = config_loader.get_config()
     metrics = config.get('metrics', [])
 
@@ -920,6 +968,7 @@ def team_info(request, team_number):
         match_list.append({
             'id': m.id,
             'match_number': m.match_number,
+            'start_pos': m.start_pos,
             'start_pos': m.start_pos,
             'scout_name': m.scout_name,
             'autoLeave': m.autoLeave,
