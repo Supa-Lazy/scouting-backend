@@ -12,6 +12,9 @@ class Teams(models.Model):
     # Dynamic Data Bucket
     pit_data = models.JSONField(default=dict)
 
+    # Freeform strategy notes
+    notes = models.TextField(blank=True, default='')
+
     class Meta:
         unique_together = ('team_number', 'event')
 
@@ -37,6 +40,7 @@ class Team_Match_Data(models.Model):
     is_broken = models.BooleanField(default=False)
     is_disabled = models.BooleanField(default=False)
     is_tipped = models.BooleanField(default=False)
+    is_excluded = models.BooleanField(default=False)
     
     # Subjective Ratings (Anchor)
     driverRanking = models.IntegerField(default=0)
